@@ -72,12 +72,14 @@ namespace Warren.JwtAuth.API
                 var signingKey = Encoding.UTF8.GetBytes(Configuration["JWTSettings:SecretKey"]);
                 var encryptionKey = Encoding.UTF8.GetBytes(Configuration["JWTSettings:EncryptionKey"]);
 
+                o.IncludeErrorDetails = true;
                 o.SaveToken = true;
                 o.TokenValidationParameters = new TokenValidationParameters
                 {
                     ValidateIssuer = true,
                     ValidateAudience = true,
                     ValidateLifetime = true,
+                    ClockSkew = TimeSpan.Zero,
                     ValidateIssuerSigningKey = true,
 
                     ValidIssuer = Configuration["JWTSettings:Issuer"],
