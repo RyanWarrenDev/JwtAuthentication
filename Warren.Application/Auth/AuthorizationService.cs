@@ -23,6 +23,18 @@ namespace Warren.Application.Auth
 
         public const int DEFAULTREFRESHEXPIRYTIMEMINUTES = 2;
 
+        private int _tokenExpiresInMinutes { get; set; }
+        private int TokenExpiresInMinutes
+        {
+            get
+            {
+                if (_tokenExpiresInMinutes != default)
+                    _tokenExpiresInMinutes = _configuration["JWTSettings:ExpiresInMinutes"]
+                                                .ToInt(DEFAULTREFRESHEXPIRYTIMEMINUTES);
+                return _tokenExpiresInMinutes;
+            }
+        }
+
         private byte[] _secretKey { get; set; }
         private byte[] SecretKey
         {
@@ -42,6 +54,27 @@ namespace Warren.Application.Auth
                 if (_encryptionKey.IsNullOrEmpty())
                     _encryptionKey = Encoding.UTF8.GetBytes(_configuration["JWTSettings:EncryptionKey"]);
                 return _encryptionKey;
+            }
+        }
+
+        private string _issuer { get; set; }
+        private string Issuer { 
+            get
+            {
+                if (_issuer.IsNullOrEmpty())
+                    _issuer = _configuration["JWTSettings:Issuer"];
+                return _issuer;
+            } 
+        }
+
+        private string _audience { get; set; }
+        private string Audience
+        {
+            get
+            {
+                if (_issuer.IsNullOrEmpty())
+                    _issuer = _configuration["JWTSettings:Audience"];
+                return _issuer;
             }
         }
 
@@ -104,11 +137,7 @@ namespace Warren.Application.Auth
         #region Helpers
         private async Task<AuthorizationToken> GetAuthToken(User user)
         {
-            //Get all necessary configuration values
-            var audience = _configuration["JWTSettings:Audience"];
-            var issuer = _configuration["JWTSettings:Issuer"];
-            var tokenExpiresIn = _configuration["JWTSettings:ExpiresInMinutes"].ToInt(DEFAULTREFRESHEXPIRYTIMEMINUTES);
-            var tokenValidTo = DateTime.UtcNow.AddMinutes(tokenExpiresIn);
+            var tokenValidTo = DateTime.UtcNow.AddMinutes(TokenExpiresInMinutes);
 
             //Create encryption keys
             var symmetricKey = new SymmetricSecurityKey(EncryptionKey);
@@ -119,14 +148,14 @@ namespace Warren.Application.Auth
 
             //Create the jwt token definition
             var jwtToken = new JwtSecurityTokenHandler().CreateJwtSecurityToken(
-                issuer,
-                audience,
+                Issuer,
+                Audience,
                 claimsIdentity,
                 DateTime.UtcNow,
                 tokenValidTo,
                 DateTime.UtcNow,
-                new SigningCredentials(new SymmetricSecurityKey(SecretKey), SecurityAlgorithms.HmacSha256Signature)
-                //encryptionCredentials
+                new SigningCredentials(new SymmetricSecurityKey(SecretKey), SecurityAlgorithms.HmacSha256Signature),
+                encryptionCredentials
             );
 
             //Create the encrypted token
@@ -212,7 +241,7 @@ namespace Warren.Application.Auth
                     ValidateIssuer = false,
                     ValidateIssuerSigningKey = false,
                     IssuerSigningKey = new SymmetricSecurityKey(SecretKey),
-                    //TokenDecryptionKey = new SymmetricSecurityKey(EncryptionKey),
+                    TokenDecryptionKey = new SymmetricSecurityKey(EncryptionKey),
                     ValidateLifetime = false
                 };
 
