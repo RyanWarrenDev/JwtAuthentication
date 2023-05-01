@@ -36,7 +36,7 @@ namespace Warren.JwtAuth.API.Controllers
 
         [AllowAnonymous]
         [HttpPost]
-        [Route("login")]
+        [Route("Login")]
         public async Task<IActionResult> Login([FromBody]Login login)
         {
             //Check user's login details are valid and get token
@@ -66,7 +66,7 @@ namespace Warren.JwtAuth.API.Controllers
 
         [AllowAnonymous]
         [HttpGet]
-        [Route("refresh")]
+        [Route("Refresh")]
         public async Task<IActionResult> Refresh()
         {
             var refreshToken = Request.Cookies["JwtAuth_Refresh"];

@@ -21,17 +21,30 @@ namespace Warren.Application.Auth
 
         private readonly UserManager<User> _userManager;
 
-        public const int DEFAULTREFRESHEXPIRYTIMEMINUTES = 2;
+        public const int DEFAULTTOKENEXPIRESINMINUTES = 10;
+        public const int DEFAULTREFRESHEXPIRYTIMEDAYS = 10;
 
         private int _tokenExpiresInMinutes { get; set; }
         private int TokenExpiresInMinutes
         {
             get
             {
-                if (_tokenExpiresInMinutes != default)
+                if (_tokenExpiresInMinutes == default)
                     _tokenExpiresInMinutes = _configuration["JWTSettings:ExpiresInMinutes"]
-                                                .ToInt(DEFAULTREFRESHEXPIRYTIMEMINUTES);
+                                                .ToInt(DEFAULTTOKENEXPIRESINMINUTES);
                 return _tokenExpiresInMinutes;
+            }
+        }
+
+        private int _refreshTokenExpiresInDays { get; set; }
+        private int RefreshTokenExpiresInDays
+        {
+            get
+            {
+                if (_refreshTokenExpiresInDays == default)
+                    _refreshTokenExpiresInDays = _configuration["JWTSettings:RefreshExpiresInDays"]
+                                                .ToInt(DEFAULTREFRESHEXPIRYTIMEDAYS);
+                return _refreshTokenExpiresInDays;
             }
         }
 
@@ -72,9 +85,9 @@ namespace Warren.Application.Auth
         {
             get
             {
-                if (_issuer.IsNullOrEmpty())
-                    _issuer = _configuration["JWTSettings:Audience"];
-                return _issuer;
+                if (_audience.IsNullOrEmpty())
+                    _audience = _configuration["JWTSettings:Audience"];
+                return _audience;
             }
         }
 
@@ -120,16 +133,18 @@ namespace Warren.Application.Auth
         public async Task<AuthorizationToken?> GetAuthTokenFromRefresh(string token, string refreshToken)
         {
             var tokenUser = GetPrincipalFromExpiredToken(token);
+            if (tokenUser == null)
+                throw new UnauthorizedAccessException("Could not verify token");
 
-            var authToken = _authRepository.FindBy(x => x.RefreshToken == refreshToken).FirstOrDefault();
+            var authToken = _authRepository.FindBy(x => x.RefreshToken == refreshToken).SingleOrDefault();
 
-            if (authToken is null)
-                return null;
-
-            if (DateTime.UtcNow >= authToken.RefreshTokenValidTo || authToken.TokenRevoked)
-                return null;
+            if (authToken is null || DateTime.UtcNow >= authToken.RefreshTokenValidTo || authToken.TokenRevoked)
+                throw new UnauthorizedAccessException("Refresh token is not valid");
 
             var user = await _userManager.FindByIdAsync(authToken.UserId.ToString());
+
+            if (user == null || tokenUser.Claims.FirstOrDefault(x => x.Type == ClaimTypes.Email)?.Value != user.Email)
+                throw new UnauthorizedAccessException("Refresh token does not match access token");
 
             return await GetAuthToken(user);
         }
@@ -173,8 +188,7 @@ namespace Warren.Application.Auth
 
         private AuthorizationToken CreateAuthToken(string token, DateTime tokenValidTo)
         {
-            var refreshTokenValidToDays = _configuration["JWTSettings:RefreshExpiresInDays"].ToInt(DEFAULTREFRESHEXPIRYTIMEMINUTES);
-            var refreshTokenValidTo = DateTime.UtcNow.AddDays(refreshTokenValidToDays);
+            var refreshTokenValidTo = DateTime.UtcNow.AddDays(RefreshTokenExpiresInDays);
 
             var refreshToken = GenerateRefreshToken();
 
@@ -212,6 +226,7 @@ namespace Warren.Application.Auth
             {
                 new Claim(ClaimTypes.Name, user.Fullname),
                 new Claim(JwtAuthClaimTypes.UserId, user.Id.ToString()),
+                new Claim(ClaimTypes.Email, user.Email)
             });
 
             var userClaims = await _userManager.GetClaimsAsync(user);
