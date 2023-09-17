@@ -70,7 +70,7 @@ namespace Warren.JwtAuth.API.Controllers
         public async Task<IActionResult> Refresh()
         {
             var refreshToken = Request.Cookies["JwtAuth_Refresh"];
-            var token = Request.Headers.Authorization.ToString().ToLower().Substring("bearer ".Length);
+            var token = Request.Headers.Authorization.ToString().Substring("bearer ".Length);
 
             if(token.IsNullOrEmpty() || refreshToken.IsNullOrEmpty())
                 return Unauthorized();
